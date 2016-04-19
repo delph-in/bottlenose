@@ -1,0 +1,18 @@
+{
+    "bottlenose": {
+        "grammars": [
+            {
+                "key": "erg",
+                "path": "./erg.dat",
+                "description": "The English Resource Grammar"
+            }
+        ],
+        "ace": {
+            "executable": "ace",
+            "cmdargs": ["-n", "5"]
+        },
+        "allow_jsonp": true,
+        "default_tasks": ["parse"]
+    }
+}
+
