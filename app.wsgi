@@ -13,7 +13,8 @@ os.chdir(cwd)
 
 # ... build or import your bottle application here ...
 import bottlenose
-#bottlenose.cwd = cwd
+# bottlenose.cors_origin = '*'
+# bottlenose.cwd = cwd
 
 # Do NOT use bottle.run() with mod_wsgi
 application = bottlenose.app

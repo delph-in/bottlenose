@@ -11,7 +11,7 @@
             "executable": "ace",
             "cmdargs": ["-n", "5"]
         },
-        "allow_jsonp": true,
+        "allow_jsonp": false,
         "default_tasks": ["parse"]
     }
 }

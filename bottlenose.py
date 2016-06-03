@@ -15,7 +15,7 @@ from bottle import (
 )
 
 from delphin.interfaces import rest, ace
-from delphin.mrs import simplemrs, eds, mrsjson, dmrsjson
+from delphin.mrs import simplemrs, eds, Mrs, Dmrs
 from delphin import derivation
 from delphin.extra import latex
 
@@ -24,6 +24,10 @@ from delphin.extra import latex
 
 app = default_app()
 
+# maybe constrain this to known origins to avoid excessive requests
+cors_origin = '*'
+
+# this can be set from app.wsgi if the server path is known
 cwd = os.path.abspath(os.path.dirname(__file__))
 with open(os.path.join(cwd, 'config.json')) as fp:
     app.config.load_dict(json.load(fp))
@@ -49,7 +53,7 @@ def get_grammar(grmkey):
         abort(404, 'No grammar is specified for "%s".' % grmkey)
     grm = grammars.get(grmkey)
     if not os.path.exists(grm.get('path')):
-        abort(404, 'The grammar could not be found.')
+        abort(503, 'The grammar could not be found.')
     return grm
 
 
@@ -88,6 +92,21 @@ def get_params(query, param_spec):
     return params
 
 
+## CORS support
+
+# thanks: https://gist.github.com/richard-flosi/3789163
+@app.hook('after_request')
+def enable_cors():
+    response.headers['Access-Control-Allow-Origin'] = cors_origin
+
+    # if preflight requests (e.g. OPTIONS method) are allowed
+    # response.headers['Access-Control-Allow-Methods'] = 'GET, OPTIONS'
+    # response.headers['Access-Control-Allow-Headers'] = \
+    #     'Origin, Accept, Content-type, X-Requested-With, X-CSRF-Token'
+    
+    # if custom headers are used:
+    # response.headers['Access-Control-Expose-Headers'] = 'X-Custom-Header'
+
 ## JSON-P support
 
 # thanks: http://flask.pocoo.org/snippets/79/
@@ -117,10 +136,11 @@ parse_params = {
     # 'time':         param(),
     # 'roots':        param(),
     'generics':     param(choices=['all', 'null'], default='all'),
+    'tokens':       param(choices=['json', 'yy', 'null'], default='null'),
     'derivation':   param(choices=['json', 'udf', 'null'], default='null'),
     'mrs':          param(choices=['json', 'simple', 'latex', 'null'],
                           default='null'),
-    'eds':          param(choices=['json', 'native', 'latex', 'null'],
+    'eds':          param(choices=['json', 'native', 'amr', 'latex', 'null'],
                           default='null'),
     'dmrs':         param(choices=['json', 'latex', 'null'],
                           default='null'),
@@ -136,16 +156,18 @@ def parse(grmkey):
     query = request.query.decode()
     params = get_params(query, parse_params)
     inp = query['input']
-    result = ace.parse(
+    ace_response = ace.parse(
         grm['path'],
         inp,
         cmdargs=['-n', str(params['results'])]
     )
-    return parse_response(inp, result['RESULTS'], params)
+    return parse_response(inp, ace_response, params)
 
-def parse_response(inp, results, params):
+def parse_response(inp, ace_response, params):
+    properties = True if params.get('properties') == 'json' else False
+    tcpu, pedges = _get_parse_info(ace_response.get('NOTES', []))
     result_data = []
-    for i, res in enumerate(results):
+    for i, res in enumerate(ace_response.get('RESULTS', [])):
         mrs, udf = res['MRS'], res['DERIV']
         xmrs = simplemrs.loads_one(mrs)
         d = {'result-id': i}
@@ -158,33 +180,51 @@ def parse_response(inp, results, params):
         if params.get('mrs') == 'simple':
             d['mrs'] = mrs
         elif params.get('mrs') == 'json':
-            d['mrs'] = mrsjson.encode(xmrs)
+            d['mrs'] = Mrs.to_dict(xmrs, properties=properties)
         elif params.get('mrs') == 'latex':
-            abort(400, "The 'latex' format for MRS is not yet implemented.")
+            abort(501, "The 'latex' format for MRS is not yet implemented.")
 
         if params.get('eds') == 'native':
             d['eds'] = eds.dumps(xmrs, single=True)
         elif params.get('eds') == 'json':
-            abort(400, "The 'json' format for EDS is not yet implemented.")
+            d['eds'] = eds.Eds.from_xmrs(xmrs).to_dict(properties=properties)
         elif params.get('eds') == 'latex':
-            abort(400, "The 'latex' format for EDS is not yet implemented.")
+            abort(501, "The 'latex' format for EDS is not yet implemented.")
 
         if params.get('dmrs') == 'json':
-            d['dmrs'] = dmrsjson.encode(xmrs)
+            d['dmrs'] = Dmrs.to_dict(xmrs, properties=properties)
         elif params.get('dmrs') == 'latex':
             d['dmrs'] = latex.dmrs_tikz_dependency(xmrs)
 
         result_data.append(d)
-
-    return {
+    
+    data = {
         'input': inp,
-        'readings': len(results),
+        'readings': len(ace_response.get('RESULTS', [])),
         'results': result_data
     }
+    if tcpu is not None: data['tcpu'] = tcpu
+    if pedges is not None: data['pedges'] = pedges
+
+    return data
 
 def udf_to_dict(udf, params):
     d = derivation.Derivation.from_string(udf)
     return d.to_dict(fields=['id', 'entity', 'score', 'form', 'tokens'])
+
+def _get_parse_info(notes):
+    tcpu, pedges = None, None
+    for note in notes:
+        m = re.search(r'added \d+ \/ (?P<edges>\d+) edges to chart', note)
+        if m:
+            pedges = m.group('edges')
+        # time is not available until after the last parse...
+        # m = re.search(r'parsed.*, time (?P<time>\d+\.\d+)s', note)
+        # if m:
+        #     tcpu = m.group('time')
+    return tcpu, pedges
+
+
 
 
 # Generation
