@@ -156,10 +156,12 @@ def parse(grmkey):
     query = request.query.decode()
     params = get_params(query, parse_params)
     inp = query['input']
+    opts = dict(ace_options)
+    opts['cmdargs'] = opts.get('cmdargs', []) + ['-n', str(params['results'])]
     ace_response = ace.parse(
         grm['path'],
         inp,
-        cmdargs=['-n', str(params['results'])]
+        **opts
     )
     return parse_response(inp, ace_response, params)
 
