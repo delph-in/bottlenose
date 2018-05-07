@@ -15,8 +15,9 @@ from bottle import (
 )
 
 from delphin.interfaces import rest, ace
-from delphin.mrs import simplemrs, eds, Mrs, Dmrs
+from delphin.mrs import simplemrs, eds, penman, Mrs, Dmrs
 from delphin import derivation
+from delphin import tokens
 from delphin.extra import latex
 
 
@@ -142,7 +143,7 @@ parse_params = {
                           default='null'),
     'eds':          param(choices=['json', 'native', 'amr', 'latex', 'null'],
                           default='null'),
-    'dmrs':         param(choices=['json', 'latex', 'null'],
+    'dmrs':         param(choices=['json', 'penman', 'latex', 'null'],
                           default='null'),
     'properties':   param(choices=['json', 'null'], default='json'),
     'filter':       param(cast=make_re)
@@ -169,8 +170,8 @@ def parse_response(inp, ace_response, params):
     properties = True if params.get('properties') == 'json' else False
     tcpu, pedges = _get_parse_info(ace_response.get('NOTES', []))
     result_data = []
-    for i, res in enumerate(ace_response.get('RESULTS', [])):
-        mrs, udf = res['MRS'], res['DERIV']
+    for i, res in enumerate(ace_response.results()):
+        mrs, udf = res['mrs'], res['derivation']
         xmrs = simplemrs.loads_one(mrs)
         d = {'result-id': i}
 
@@ -195,6 +196,8 @@ def parse_response(inp, ace_response, params):
 
         if params.get('dmrs') == 'json':
             d['dmrs'] = Dmrs.to_dict(xmrs, properties=properties)
+        elif params.get('dmrs') == 'penman':
+            d['dmrs'] = penman.dumps([xmrs], model=Dmrs)
         elif params.get('dmrs') == 'latex':
             d['dmrs'] = latex.dmrs_tikz_dependency(xmrs)
 
@@ -207,6 +210,19 @@ def parse_response(inp, ace_response, params):
     }
     if tcpu is not None: data['tcpu'] = tcpu
     if pedges is not None: data['pedges'] = pedges
+    if params.get('tokens'):
+        t1 = ace_response.tokens('initial')
+        t2 = ace_response.tokens('internal')
+        if params['tokens'] == 'json':
+            data['tokens'] = {
+                'initial': t1.to_list(),
+                'internal': t2.to_list()
+            }
+        elif params['tokens'] == 'yy':
+            data['tokens'] = {
+                'initial': str(t1),
+                'internal': str(t2)
+            }
 
     return data
 
