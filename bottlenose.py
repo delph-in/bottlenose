@@ -141,7 +141,8 @@ parse_params = {
     'derivation':   param(choices=['json', 'udf', 'null'], default='null'),
     'mrs':          param(choices=['json', 'simple', 'latex', 'null'],
                           default='null'),
-    'eds':          param(choices=['json', 'native', 'amr', 'latex', 'null'],
+    'eds':          param(choices=['json', 'native', 'penman', 'amr',
+                                   'latex', 'null'],
                           default='null'),
     'dmrs':         param(choices=['json', 'penman', 'latex', 'null'],
                           default='null'),
@@ -191,6 +192,8 @@ def parse_response(inp, ace_response, params):
             d['eds'] = eds.dumps(xmrs, single=True)
         elif params.get('eds') == 'json':
             d['eds'] = eds.Eds.from_xmrs(xmrs).to_dict(properties=properties)
+        elif params.get('eds') in ('amr', 'penman'):
+            d['eds'] = penman.dumps([xmrs], model=eds.Eds)
         elif params.get('eds') == 'latex':
             abort(501, "The 'latex' format for EDS is not yet implemented.")
 
@@ -205,7 +208,7 @@ def parse_response(inp, ace_response, params):
     
     data = {
         'input': inp,
-        'readings': len(ace_response.get('RESULTS', [])),
+        'readings': len(ace_response.get('results', [])),
         'results': result_data
     }
     if tcpu is not None: data['tcpu'] = tcpu
