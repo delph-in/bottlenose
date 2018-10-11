@@ -20,26 +20,26 @@ app = Flask(__name__)
 app.config.from_object('config')
 CORS(app)
 
-ace_env = dict(os.environ)
-ace_env['LANG'] = 'en_US.UTF-8'  # change as necessary
-ace_options = {
+ACE_ENV = dict(os.environ)
+ACE_ENV['LANG'] = 'en_US.UTF-8'  # change as necessary
+ACE_OPTIONS = {
     'executable': app.config['ACE'].get('executable', 'ace'),
     'cmdargs': app.config['ACE'].get('cmdargs', []),
-    'env': ace_env
+    'env': ACE_ENV
 }
 
-grammars = {}
+GRAMMARS = {}
 for gramdata in app.config['GRAMMARS']:
-    grammars[gramdata['key'].lower()] = gramdata
+    GRAMMARS[gramdata['key'].lower()] = gramdata
 
 
 # Config interface
 
-def get_grammar(grmkey):
+def _get_grammar(grmkey):
     grmkey = grmkey.lower()  # normalize key
-    if grmkey not in grammars:
+    if grmkey not in GRAMMARS:
         abort(404, 'No grammar is specified for "%s".' % grmkey)
-    grm = grammars.get(grmkey)
+    grm = GRAMMARS.get(grmkey)
     if not os.path.exists(grm.get('path')):
         abort(503, 'The grammar could not be found.')
     return grm
@@ -47,7 +47,7 @@ def get_grammar(grmkey):
 
 ## Parameter validation
 
-def param(cast=None, choices=None, default=None):
+def _param(cast=None, choices=None, default=None):
     def validate(val):
         if val is None:
             return default
@@ -60,14 +60,14 @@ def param(cast=None, choices=None, default=None):
     return validate
 
 
-def make_re(s):
+def _make_re(s):
     try:
         return re.compile(s)
     except re.error:
         raise ValueError('Invalid regular expression: {}'.format(s))
 
 
-def get_params(query, param_spec):
+def _get_params(query, param_spec):
     params = {}
     errors = []
     for key, get_param in param_spec.items():
@@ -82,41 +82,42 @@ def get_params(query, param_spec):
 
 # Parsing
 
-parse_params = {
-    'analyses':     param(cast=int, default=100),
-    'results':      param(cast=int, default=1),
-    # 'time':         param(),
-    # 'roots':        param(),
-    'generics':     param(choices=['all', 'null'], default='all'),
-    'tokens':       param(choices=['json', 'yy', 'null'], default='null'),
-    'derivation':   param(choices=['json', 'udf', 'null'], default='null'),
-    'mrs':          param(choices=['json', 'simple', 'latex', 'null'],
+PARSE_PARAMS = {
+    'analyses':     _param(cast=int, default=100),
+    'results':      _param(cast=int, default=1),
+    # 'time':         _param(),
+    # 'roots':        _param(),
+    'generics':     _param(choices=['all', 'null'], default='all'),
+    'tokens':       _param(choices=['json', 'yy', 'null'], default='null'),
+    'derivation':   _param(choices=['json', 'udf', 'null'], default='null'),
+    'mrs':          _param(choices=['json', 'simple', 'latex', 'null'],
                           default='null'),
-    'eds':          param(choices=['json', 'native', 'penman', 'amr',
+    'eds':          _param(choices=['json', 'native', 'penman', 'amr',
                                    'latex', 'null'],
                           default='null'),
-    'dmrs':         param(choices=['json', 'penman', 'latex', 'null'],
+    'dmrs':         _param(choices=['json', 'penman', 'latex', 'null'],
                           default='null'),
-    'properties':   param(choices=['json', 'null'], default='json'),
-    'filter':       param(cast=make_re)
+    'properties':   _param(choices=['json', 'null'], default='json'),
+    'filter':       _param(cast=_make_re)
 }
 
 
 @app.route('/<grmkey>/parse')
 def parse(grmkey):
-    grm = get_grammar(grmkey)
-    params = get_params(request.args, parse_params)
+    grm = _get_grammar(grmkey)
+    params = _get_params(request.args, PARSE_PARAMS)
     inp = request.args.get('input', '')
-    opts = dict(ace_options)
+    opts = dict(ACE_OPTIONS)
     opts['cmdargs'] = opts.get('cmdargs', []) + ['-n', str(params['results'])]
     ace_response = ace.parse(
         grm['path'],
         inp,
         **opts
     )
-    return jsonify(parse_response(inp, ace_response, params))
+    return jsonify(_parse_repsonse(inp, ace_response, params))
 
-def parse_response(inp, ace_response, params):
+
+def _parse_repsonse(inp, ace_response, params):
     properties = True if params.get('properties') == 'json' else False
 
     tcpu = ace_response.get('tcpu')
@@ -134,7 +135,7 @@ def parse_response(inp, ace_response, params):
         if params.get('derivation') == 'udf':
             d['derivation'] = udf
         elif params.get('derivation') == 'json':
-            d['derivation'] = udf_to_dict(udf, params)
+            d['derivation'] = _udf_to_dict(udf, params)
 
         if params.get('mrs') == 'simple':
             d['mrs'] = mrs
@@ -163,7 +164,7 @@ def parse_response(inp, ace_response, params):
 
     data = {
         'input': inp,
-        'readings': len(ace_response.get('results', [])),
+        'readings': readings,
         'results': result_data
     }
     if tcpu is not None: data['tcpu'] = tcpu
@@ -184,41 +185,67 @@ def parse_response(inp, ace_response, params):
 
     return data
 
-def udf_to_dict(udf, params):
+
+def _udf_to_dict(udf, params):
     d = derivation.Derivation.from_string(udf)
     return d.to_dict(fields=['id', 'entity', 'score', 'form', 'tokens'])
 
+
 # Generation
 
-# generate_params = {
-#     'analyses':     param(cast=int, default=100),
-#     'results':      param(cast=int, default=1),
-#     # 'time':         param(),
-#     # 'roots':        param(),
-#     'generics':     param(choices=['all', 'null'], default='all'),
-#     'derivation':   param(choices=['json', 'udf', 'null'], default='null'),
-#     'mrs':          param(choices=['json', 'simple', 'latex', 'null'],
-#                           default='null'),
-#     'eds':          param(choices=['json', 'native', 'latex', 'null'],
-#                           default='null'),
-#     'dmrs':         param(choices=['json', 'latex', 'null'],
-#                           default='null'),
-#     'properties':   param(choices=['json', 'null'], default='json'),
-#     'filter':       param(cast=make_re)
-# }
+GENERATE_PARAMS = {
+    'results':      _param(cast=int, default=1),
+    # 'time':         _param(),
+    # 'roots':        _param(),
+    'derivation':   _param(choices=['json', 'udf', 'null'], default='null'),
+}
 
-# @route('/<grmkey>/generate')
-# def generate(grmkey):
-#     grm = get_grammar(grmkey)
-#     query = request.query.decode()
-#     params = get_params(query, generate_params)
-#     inp = query['input']
-#     print(inp)
-#     xmrs = simplemrs.loads_one(inp)
-#     result = ace.generate(
-#         grm, simplemrs.dumps_one(xmrs), cmdargs=['-n', str(params['results'])]
-#     )
-#     return result
+
+@app.route('/<grmkey>/generate')
+def generate(grmkey):
+    grm = _get_grammar(grmkey)
+    params = _get_params(request.args, GENERATE_PARAMS)
+    inp = request.args.get('input', '')
+    opts = dict(ACE_OPTIONS)
+    opts['cmdargs'] = opts.get('cmdargs', []) + ['-n', str(params['results'])]
+    # decode simplemrs just to validate input
+    try:
+        xmrs = simplemrs.loads_one(inp)
+    except Exception:
+        abort(500, 'invalid input MRS')
+    ace_response = ace.generate(
+        grm['path'],
+        simplemrs.dumps_one(xmrs),
+        **opts
+    )
+    return jsonify(_generation_response(inp, ace_response, params))
+
+
+def _generation_response(inp, ace_response, params):
+    tcpu = ace_response.get('tcpu')
+    pedges = ace_response.get('pedges')
+    readings = ace_response.get('readings')
+    if readings is None:
+        readings = len(ace_response.get('results', []))
+    result_data = []
+    for i, res in enumerate(ace_response.results()):
+        udf = res['derivation']
+        d = {'result-id': i,
+             'surface': res['surface']}
+        if params.get('derivation') == 'udf':
+            d['derivation'] = udf
+        elif params.get('derivation') == 'json':
+            d['derivation'] = _udf_to_dict(udf, params)
+        result_data.append(d)
+    data = {
+        'input': inp,
+        'readings': readings,
+        'results': result_data
+    }
+    if tcpu is not None: data['tcpu'] = tcpu
+    if pedges is not None: data['pedges'] = pedges
+    return data
+
 
 if __name__ == '__main__':
     app.run()
