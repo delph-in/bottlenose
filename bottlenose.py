@@ -102,11 +102,15 @@ PARSE_PARAMS = {
 }
 
 
-@app.route('/<grmkey>/parse')
+@app.route('/<grmkey>/parse', methods=['GET', 'POST'])
 def parse(grmkey):
+    if request.method == 'GET':
+        args = request.args
+    else:
+        args = request.get_json() or {}
     grm = _get_grammar(grmkey)
-    params = _get_params(request.args, PARSE_PARAMS)
-    inp = request.args.get('input', '')
+    params = _get_params(args, PARSE_PARAMS)
+    inp = args.get('input', '')
     opts = dict(ACE_OPTIONS)
     opts['cmdargs'] = opts.get('cmdargs', []) + ['-n', str(params['results'])]
     ace_response = ace.parse(
@@ -201,11 +205,15 @@ GENERATE_PARAMS = {
 }
 
 
-@app.route('/<grmkey>/generate')
+@app.route('/<grmkey>/generate', methods=['GET', 'POST'])
 def generate(grmkey):
+    if request.method == 'GET':
+        args = request.args
+    else:
+        args = request.get_json() or {}
     grm = _get_grammar(grmkey)
-    params = _get_params(request.args, GENERATE_PARAMS)
-    inp = request.args.get('input', '')
+    params = _get_params(args, GENERATE_PARAMS)
+    inp = args.get('input', '')
     opts = dict(ACE_OPTIONS)
     opts['cmdargs'] = opts.get('cmdargs', []) + ['-n', str(params['results'])]
     # decode simplemrs just to validate input
