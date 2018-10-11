@@ -6,7 +6,7 @@ using ACE and pyDelphin as the backend.
 
 ## Quick Start
 
-Configure your grammars and ACE in [config.json](config.json), make
+Configure your grammars and ACE in [config.py](config.py), make
 sure the [requirements](#requirements) are satisfied and importable
 (e.g. by
 [setting PYTHONPATH](https://docs.python.org/3/using/cmdline.html#envvar-PYTHONPATH)),
@@ -32,10 +32,12 @@ If you want a client to read the responses from the server, try
 - [Python 3.3+](http://python.org)
 - [ACE](http://sweaglesw.org/linguistics/ace/)
 - [pyDelphin](https://github.com/delph-in/pydelphin)
-- [Bottle](http://bottlepy.org)
+- [Flask](http://flask.pocoo.org/)
+- [Flask-CORS](https://flask-cors.corydolphin.com/)
 
 ## Disclaimer
 
 Bottlenose currently only implements a subset of the functions defined
 by the [API](http://moin.delph-in.net/ErgApi), but it also provides
 DMRS output and it works with non-ERG grammars as well.
+
