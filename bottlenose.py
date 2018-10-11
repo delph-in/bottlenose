@@ -4,7 +4,7 @@ import re
 import json
 from functools import wraps
 
-from flask import Flask, request, abort, jsonify, url_for
+from flask import Flask, request, abort, jsonify
 from flask_cors import CORS
 
 from delphin.interfaces import rest, ace
@@ -118,7 +118,13 @@ def parse(grmkey):
 
 def parse_response(inp, ace_response, params):
     properties = True if params.get('properties') == 'json' else False
-    tcpu, pedges = _get_parse_info(ace_response.get('NOTES', []))
+
+    tcpu = ace_response.get('tcpu')
+    pedges = ace_response.get('pedges')
+    readings = ace_response.get('readings')
+    if readings is None:
+        readings = len(ace_response.get('results', []))
+
     result_data = []
     for i, res in enumerate(ace_response.results()):
         mrs, udf = res['mrs'], res['derivation']
@@ -181,19 +187,6 @@ def parse_response(inp, ace_response, params):
 def udf_to_dict(udf, params):
     d = derivation.Derivation.from_string(udf)
     return d.to_dict(fields=['id', 'entity', 'score', 'form', 'tokens'])
-
-def _get_parse_info(notes):
-    tcpu, pedges = None, None
-    for note in notes:
-        m = re.search(r'added \d+ \/ (?P<edges>\d+) edges to chart', note)
-        if m:
-            pedges = m.group('edges')
-        # time is not available until after the last parse...
-        # m = re.search(r'parsed.*, time (?P<time>\d+\.\d+)s', note)
-        # if m:
-        #     tcpu = m.group('time')
-    return tcpu, pedges
-
 
 # Generation
 
