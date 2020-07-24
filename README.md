@@ -4,6 +4,15 @@ This is an implementation of the
 [DELPH-IN RESTful API](http://moin.delph-in.net/ErgApi)
 using ACE and pyDelphin as the backend.
 
+## Deprecation Notice
+
+This project is now deprecated will no longer be developed.
+Users are advised to
+migrate to the PyDelphin's built-in
+[web server](https://pydelphin.readthedocs.io/en/latest/api/delphin.web.server.html),
+or otherwise use PyDelphin
+[v0.9.2](https://pypi.org/project/PyDelphin/0.9.2/).
+
 ## Quick Start
 
 Configure your grammars and ACE in [config.py](config.py), make
@@ -31,7 +40,7 @@ If you want a client to read the responses from the server, try
 
 - [Python 3.3+](http://python.org)
 - [ACE](http://sweaglesw.org/linguistics/ace/)
-- [pyDelphin](https://github.com/delph-in/pydelphin)
+- [PyDelphin](https://github.com/delph-in/pydelphin) (last supported version: [v0.9.2](https://pypi.org/project/PyDelphin/0.9.2/))
 - [Flask](http://flask.pocoo.org/)
 - [Flask-CORS](https://flask-cors.corydolphin.com/)
 
